@@ -1,0 +1,97 @@
+# LLM Prompt Injection Firewall — Default Policy
+# ================================================
+# This file defines the default security policy for the firewall.
+# Override any section by providing your own policy file and loading it with:
+#   PolicyEngine.from_file(Path("your_policy.yaml"))
+#
+# Rule resolution order (first match wins):
+#   1. block_patterns      — explicit regex/literal patterns → always BLOCK
+#   2. allow_patterns      — whitelist patterns → always ALLOW (override risk)
+#   3. block_threat_categories — block by ThreatCategory → always BLOCK
+#   4. score >= thresholds.block    → BLOCK
+#   5. score >= thresholds.sanitize → SANITIZE
+#   6. score >= thresholds.log      → LOG
+#   7. default_action               → fallback
+
+version: "1.0"
+description: "Default security policy for the LLM Prompt Injection Firewall."
+
+# ---------------------------------------------------------------------------
+# Risk score thresholds
+# ---------------------------------------------------------------------------
+thresholds:
+  block:    0.85   # Risk score >= this → BLOCK
+  sanitize: 0.70   # Risk score >= this → SANITIZE (strip injection phrases)
+  log:      0.40   # Risk score >= this → LOG (allow but flag for review)
+
+# ---------------------------------------------------------------------------
+# Detector ensemble weights
+# ---------------------------------------------------------------------------
+weights:
+  pattern:          0.30
+  embedding:        0.25
+  llm_classifier:   0.35
+  context_boundary: 0.10
+
+# ---------------------------------------------------------------------------
+# Explicit block patterns (unconditional, evaluated before risk score)
+# These are the highest-confidence, lowest-ambiguity signatures.
+# ---------------------------------------------------------------------------
+block_patterns:
+  # Canonical instruction override
+  - "ignore (all )?(previous|prior|your) instructions"
+  - "disregard (all )?(previous|prior) instructions"
+  - "forget (everything|all) you were told"
+
+  # Mode-switching jailbreaks
+  - "\\bDAN mode\\b"
+  - "do anything now"
+  - "developer mode.{0,30}(no restrictions|unrestricted)"
+  - "jailbreak mode"
+  - "\\bsudo mode\\b"
+
+  # Direct prompt extraction
+  - "repeat (your |the )?(system prompt|initial instructions)"
+  - "output (your |the )?system prompt"
+  - "reveal (your |the )?(system prompt|hidden instructions)"
+
+  # Destructive tool abuse (highest priority — no ambiguity)
+  - "\\brm -rf\\b"
+  - "DROP (DATABASE|TABLE|SCHEMA)\\b"
+  - "DELETE FROM.{0,20}WHERE 1=1"
+
+  # RAG injection markers
+  - "\\bAI INSTRUCTION\\s*:"
+  - "NOTE TO (AI|ASSISTANT|LLM|MODEL)\\s*:"
+
+# ---------------------------------------------------------------------------
+# Allow patterns (whitelist — override risk score even if block patterns match)
+# Use sparingly. Each entry is a deliberate exception to blocking rules.
+# ---------------------------------------------------------------------------
+allow_patterns: []
+  # Examples (uncomment to activate):
+  # - "ignore the typo"      # benign "ignore" usage in editing context
+  # - "what is a system prompt"  # educational question, not extraction
+
+# ---------------------------------------------------------------------------
+# Block by threat category (regardless of numeric score)
+# These categories represent attacks where the harm from a false negative
+# greatly exceeds the cost of a false positive.
+# ---------------------------------------------------------------------------
+block_threat_categories:
+  - tool_abuse        # agentic tool misuse — destructive and/or exfiltration
+
+# ---------------------------------------------------------------------------
+# Sanitization settings (applied when action == sanitize)
+# ---------------------------------------------------------------------------
+sanitization:
+  redact_secrets: true            # Remove API keys, tokens, passwords from sanitized output
+  strip_injection_phrases: true   # Remove matched injection phrases from prompt
+  strip_invisible_chars: true     # Remove zero-width spaces, RTL overrides
+  normalize_unicode: true         # NFKC normalize before forwarding to LLM
+
+# ---------------------------------------------------------------------------
+# Default action when risk score is below all thresholds
+# Options: allow | log | sanitize | block | challenge
+# ---------------------------------------------------------------------------
+default_action: allow
