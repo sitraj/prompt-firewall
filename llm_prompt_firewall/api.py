@@ -56,8 +56,10 @@ import json
 import logging
 import os
 import time
+from collections import OrderedDict
 from contextlib import asynccontextmanager
 from pathlib import Path
+from threading import Lock
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request, status
@@ -86,9 +88,62 @@ logger = logging.getLogger(__name__)
 
 _firewall: PromptFirewall | None = None
 
-# In-memory decision cache so /inspect/output can look up prior decisions.
-# In production, replace with Redis or another shared store for multi-replica.
-_decision_cache: dict[str, FirewallDecision] = {}
+# ---------------------------------------------------------------------------
+# Decision cache with TTL + LRU eviction
+#
+# Decisions are cached so /inspect/output can look up the FirewallDecision
+# produced by /inspect/input using the decision_id.
+#
+# Bounded to _CACHE_MAX_SIZE entries (LRU eviction) with a per-entry TTL of
+# _CACHE_TTL_SECONDS. Both limits prevent unbounded memory growth in a
+# long-running server.
+#
+# Thread-safe: all mutations are protected by _cache_lock.
+#
+# In production multi-replica deployments, replace with Redis or another
+# shared store so that /inspect/input and /inspect/output can be handled
+# by different instances.
+# ---------------------------------------------------------------------------
+
+_CACHE_MAX_SIZE: int = int(os.environ.get("FIREWALL_CACHE_MAX_SIZE", "10000"))
+_CACHE_TTL_SECONDS: float = float(os.environ.get("FIREWALL_CACHE_TTL_SECONDS", "300"))  # 5 min
+
+# Each entry: decision_id → (FirewallDecision, inserted_at_epoch_seconds)
+_decision_cache: OrderedDict[str, tuple[FirewallDecision, float]] = OrderedDict()
+_cache_lock = Lock()
+
+
+def _cache_put(decision_id: str, decision: FirewallDecision) -> None:
+    """Insert a decision into the cache, evicting LRU or expired entries."""
+    now = time.monotonic()
+    with _cache_lock:
+        # Evict expired entries first (scan from oldest)
+        expired = [k for k, (_, ts) in _decision_cache.items() if now - ts > _CACHE_TTL_SECONDS]
+        for k in expired:
+            del _decision_cache[k]
+
+        # Evict LRU entry if still at capacity
+        if len(_decision_cache) >= _CACHE_MAX_SIZE:
+            _decision_cache.popitem(last=False)
+
+        _decision_cache[decision_id] = (decision, now)
+        _decision_cache.move_to_end(decision_id)
+
+
+def _cache_get(decision_id: str) -> FirewallDecision | None:
+    """Look up a decision by ID. Returns None if missing or expired."""
+    now = time.monotonic()
+    with _cache_lock:
+        entry = _decision_cache.get(decision_id)
+        if entry is None:
+            return None
+        decision, inserted_at = entry
+        if now - inserted_at > _CACHE_TTL_SECONDS:
+            del _decision_cache[decision_id]
+            return None
+        # Move to end (most recently used)
+        _decision_cache.move_to_end(decision_id)
+        return decision
 
 
 # ---------------------------------------------------------------------------
@@ -323,7 +378,7 @@ async def inspect_input(request: InspectInputRequest) -> InspectInputResponse:
     )
 
     # Cache decision so /inspect/output can retrieve it by decision_id.
-    _decision_cache[decision.decision_id] = decision
+    _cache_put(decision.decision_id, decision)
 
     ens = decision.ensemble
     return InspectInputResponse(
@@ -364,7 +419,7 @@ async def inspect_output(request: InspectOutputRequest) -> InspectOutputResponse
             detail="Firewall not yet initialised.",
         )
 
-    decision = _decision_cache.get(request.decision_id)
+    decision = _cache_get(request.decision_id)
     if decision is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

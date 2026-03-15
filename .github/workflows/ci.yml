@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: "Test (Python ${{ matrix.python-version }})"
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install core + dev dependencies
+        run: |
+          pip install -e ".[dev]"
+
+      - name: Run tests
+        run: |
+          pytest llm_prompt_firewall/tests/ -q --tb=short
+
+  lint:
+    name: "Lint (ruff)"
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install ruff
+        run: pip install ruff>=0.4
+
+      - name: Check formatting
+        run: ruff format --check .
+
+      - name: Check linting
+        run: ruff check .
+
+  typecheck:
+    name: "Type check (mypy)"
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies + mypy
+        run: |
+          pip install -e ".[dev]"
+          pip install mypy pydantic
+
+      - name: Run mypy
+        run: mypy llm_prompt_firewall --ignore-missing-imports
