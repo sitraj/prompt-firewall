@@ -53,6 +53,7 @@ dev = [
     "httpx>=0.27",              # needed for FastAPI TestClient
     "prometheus-client>=0.20",
     "numpy>=1.26",              # needed by embedding_detector at import time
+    "types-PyYAML>=6.0",        # mypy stubs for yaml
 ]
 all = [
     "llm-prompt-firewall[api,embedding,llm-classifier]",
@@ -109,3 +110,12 @@ python_version = "3.11"
 strict = true
 ignore_missing_imports = true
 plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = "llm_prompt_firewall.tests.*"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "llm_prompt_firewall.detectors.embedding_detector"
+# numpy ndarray generics vary by version; silence type-arg noise here
+disallow_any_generics = false

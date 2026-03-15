@@ -56,6 +56,7 @@ import logging
 import os
 import time
 from collections import OrderedDict
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 from threading import Lock
@@ -176,7 +177,7 @@ def _make_audit_logger() -> Any:
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     global _firewall
     log_level = os.environ.get("FIREWALL_LOG_LEVEL", "INFO").upper()
     logging.basicConfig(level=getattr(logging, log_level, logging.INFO))

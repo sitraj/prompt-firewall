@@ -60,7 +60,7 @@ import logging
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from llm_prompt_firewall.models.schemas import (
     AttackDataset,
@@ -188,7 +188,7 @@ class EmbeddingIndex:
             return []
 
         # Shape: [N] — cosine similarity of query against every index vector
-        similarities: np.ndarray = self.matrix @ query_vector  # type: ignore[operator]
+        similarities: np.ndarray = self.matrix @ query_vector
         similarities = np.clip(similarities, 0.0, 1.0)  # guard against fp rounding
 
         # Get top_k indices sorted by descending similarity
@@ -414,7 +414,7 @@ class EmbeddingDetector:
         logger.info("Loading embedding model '%s'...", model_name)
         t0 = time.perf_counter()
 
-        kwargs: dict = {}
+        kwargs: dict[str, Any] = {}
         if cache_folder is not None:
             kwargs["cache_folder"] = str(cache_folder)
 

@@ -153,7 +153,7 @@ def _ensemble(
 
 
 class TestWeightConfig:
-    def test_defaults_are_positive(self):
+    def test_defaults_are_positive(self) -> None:
         w = WeightConfig()
         assert w.pattern > 0
         assert w.embedding > 0

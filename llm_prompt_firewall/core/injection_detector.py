@@ -91,7 +91,7 @@ logger = logging.getLogger(__name__)
 class _ProbeRule:
     """A single detection rule with its severity weight."""
 
-    pattern: re.Pattern
+    pattern: re.Pattern[str]
     severity: float  # [0.0–1.0] contribution to the axis sub-score
     label: str  # Short human-readable description for audit/debug
 

@@ -56,6 +56,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Final
 
@@ -77,10 +78,10 @@ class SecretPattern:
     """A compiled pattern for detecting a specific credential type."""
 
     secret_type: str
-    pattern: re.Pattern
+    pattern: re.Pattern[str]
     severity: float  # [0.0–1.0] — how bad a leak of this type is
     redaction_label: str  # replacement string in redacted output
-    mask_preview_fn: staticmethod | None = None  # optional: how to mask for logs
+    mask_preview_fn: Callable[..., str] | None = None  # optional: how to mask for logs
 
 
 def _mask_middle(value: str, keep: int = 4) -> str:
@@ -393,7 +394,7 @@ class OutputFilter:
                 continue
 
             def _replace(
-                m: re.Match,
+                m: re.Match[str],
                 label: str = sp.redaction_label,
                 stype: str = sp.secret_type,
             ) -> str:

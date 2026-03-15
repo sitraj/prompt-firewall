@@ -243,21 +243,21 @@ class CompiledPolicy:
     """
 
     config: PolicyConfig
-    compiled_block_patterns: list[re.Pattern] = field(default_factory=list)
-    compiled_allow_patterns: list[re.Pattern] = field(default_factory=list)
+    compiled_block_patterns: list[re.Pattern[str]] = field(default_factory=list)
+    compiled_allow_patterns: list[re.Pattern[str]] = field(default_factory=list)
     block_categories: frozenset[ThreatCategory] = field(default_factory=frozenset)
     default_action: FirewallAction = FirewallAction.ALLOW
 
     @classmethod
     def from_config(cls, config: PolicyConfig) -> CompiledPolicy:
-        block_compiled: list[re.Pattern] = []
+        block_compiled: list[re.Pattern[str]] = []
         for pat in config.block_patterns:
             try:
                 block_compiled.append(re.compile(pat, re.IGNORECASE | re.UNICODE))
             except re.error as exc:
                 logger.warning("Invalid block_pattern regex '%s': %s — skipping.", pat, exc)
 
-        allow_compiled: list[re.Pattern] = []
+        allow_compiled: list[re.Pattern[str]] = []
         for pat in config.allow_patterns:
             try:
                 allow_compiled.append(re.compile(pat, re.IGNORECASE | re.UNICODE))

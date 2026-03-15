@@ -130,7 +130,7 @@ class PatternEntry:
     pattern_id: str
     """Unique ID in the format 'CATEGORY-NNN:signature_index'."""
 
-    compiled: re.Pattern
+    compiled: re.Pattern[str]
     """The compiled regex. Never re-compiled at request time."""
 
     raw_pattern: str
