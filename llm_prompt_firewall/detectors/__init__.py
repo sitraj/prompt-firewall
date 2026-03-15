@@ -18,10 +18,24 @@ from llm_prompt_firewall.detectors.pattern_detector import (
     PatternEntry,
     normalise_for_matching,
 )
+from llm_prompt_firewall.detectors.embedding_detector import (
+    EmbeddingDetector,
+    EmbeddingDetectorUnavailable,
+    EmbeddingIndex,
+    IndexEntry,
+    chunk_text,
+    build_index,
+)
 
 __all__ = [
     "PatternDetector",
     "PatternLibrary",
     "PatternEntry",
     "normalise_for_matching",
+    "EmbeddingDetector",
+    "EmbeddingDetectorUnavailable",
+    "EmbeddingIndex",
+    "IndexEntry",
+    "chunk_text",
+    "build_index",
 ]
