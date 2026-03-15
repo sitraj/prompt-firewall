@@ -52,6 +52,7 @@ dev = [
     "uvicorn[standard]>=0.30",
     "httpx>=0.27",              # needed for FastAPI TestClient
     "prometheus-client>=0.20",
+    "numpy>=1.26",              # needed by embedding_detector at import time
 ]
 all = [
     "llm-prompt-firewall[api,embedding,llm-classifier]",

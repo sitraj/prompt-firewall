@@ -62,8 +62,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import numpy as np
-
 from llm_prompt_firewall.models.schemas import (
     AttackDataset,
     EmbeddingSignal,
@@ -71,7 +69,16 @@ from llm_prompt_firewall.models.schemas import (
     ThreatCategory,
 )
 
+try:
+    import numpy as np
+
+    _NUMPY_AVAILABLE = True
+except ImportError:
+    np = None  # type: ignore[assignment]
+    _NUMPY_AVAILABLE = False
+
 if TYPE_CHECKING:
+    import numpy as np  # noqa: F811
     from sentence_transformers import SentenceTransformer
 
 logger = logging.getLogger(__name__)
