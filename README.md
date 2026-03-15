@@ -309,6 +309,58 @@ The monitoring profile starts:
 - **Prometheus** on port `9090` — scrapes `/v1/metrics` every 15s
 - **Grafana** on port `3000` — pre-configured with Prometheus datasource (login: admin/admin)
 
+### Enabling the Embedding Detector in Docker
+
+The default `Dockerfile` installs `.[api]` only — the embedding detector (`sentence-transformers`) is **not included**. This keeps the image small (~200 MB) and avoids the `numpy`/`torch` dependency chain.
+
+**To enable it, make two changes to the `Dockerfile`:**
+
+**Change 1 — install the `[embedding]` extra** (line 14):
+```dockerfile
+# Before
+".[api]" \
+
+# After
+".[api,embedding]" \
+```
+
+**Change 2 — pre-download the model at build time** so pods start instantly instead of downloading ~80 MB on first request:
+```dockerfile
+# Add this after the pip install step, still inside the builder stage
+RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')"
+```
+
+With both changes the builder stage looks like:
+```dockerfile
+RUN pip install --no-cache-dir --upgrade pip \
+ && pip install --no-cache-dir --prefix=/install \
+    ".[api,embedding]" \
+    prometheus-client \
+ && python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')"
+```
+
+**Trade-offs:**
+
+| | Default (api only) | With embedding |
+|---|---|---|
+| Image size | ~200 MB | ~600 MB |
+| Cold start | Fast | Fast (model pre-baked) |
+| Paraphrase detection | No | Yes |
+| Extra dependencies | None | `sentence-transformers`, `numpy`, `torch` |
+
+> **Note:** The model files are written to `~/.cache/huggingface` inside the builder stage. Because the runtime stage copies `/install` (pip packages) but not the home directory, you also need to copy the model cache or set `SENTENCE_TRANSFORMERS_HOME` to a path that is copied across. The simplest approach is to download the model directly into `/app/models` during the build:
+>
+> ```dockerfile
+> ENV SENTENCE_TRANSFORMERS_HOME=/app/models
+> RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')"
+> ```
+>
+> Then in the runtime stage, copy it across:
+> ```dockerfile
+> COPY --from=builder /app/models /app/models
+> ENV SENTENCE_TRANSFORMERS_HOME=/app/models
+> ```
+
 ### Environment variables
 
 | Variable | Default | Description |
