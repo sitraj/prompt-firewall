@@ -65,9 +65,7 @@ from abc import ABC, abstractmethod
 from typing import Any
 
 from llm_prompt_firewall.models.schemas import (
-    DetectorType,
     LLMClassifierSignal,
-    RiskLevel,
     ThreatCategory,
 )
 
@@ -208,8 +206,7 @@ class OpenAIBackend(ClassifierBackend):
             from openai import AsyncOpenAI
         except ImportError as exc:
             raise ImportError(
-                "openai package is required for OpenAIBackend. "
-                "Install it with: pip install openai"
+                "openai package is required for OpenAIBackend. Install it with: pip install openai"
             ) from exc
 
         kwargs: dict[str, Any] = {}
@@ -332,20 +329,18 @@ def _parse_classifier_response(
          categories added to the prompt before the enum is updated).
     """
     # Step 1: direct parse
+    import contextlib
+
     data: dict[str, Any] | None = None
-    try:
+    with contextlib.suppress(json.JSONDecodeError):
         data = json.loads(raw_response.strip())
-    except json.JSONDecodeError:
-        pass
 
     # Step 2: regex extraction fallback
     if data is None:
         match = re.search(r"\{[^{}]*\}", raw_response, re.DOTALL)
         if match:
-            try:
+            with contextlib.suppress(json.JSONDecodeError):
                 data = json.loads(match.group(0))
-            except json.JSONDecodeError:
-                pass
 
     if data is None:
         logger.warning(
@@ -471,7 +466,7 @@ class LLMClassifier:
         model: str = "gpt-4o-mini",
         api_key: str | None = None,
         timeout: float = DEFAULT_TIMEOUT_SECONDS,
-    ) -> "LLMClassifier":
+    ) -> LLMClassifier:
         """Convenience constructor for OpenAI backend."""
         return cls(backend=OpenAIBackend(model=model, api_key=api_key), timeout=timeout)
 
@@ -481,7 +476,7 @@ class LLMClassifier:
         model: str = "claude-haiku-4-5-20251001",
         api_key: str | None = None,
         timeout: float = DEFAULT_TIMEOUT_SECONDS,
-    ) -> "LLMClassifier":
+    ) -> LLMClassifier:
         """Convenience constructor for Anthropic backend."""
         return cls(backend=AnthropicBackend(model=model, api_key=api_key), timeout=timeout)
 
@@ -527,7 +522,7 @@ class LLMClassifier:
                 user_message=user_message,
                 timeout=self._timeout,
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             processing_ms = (time.perf_counter() - start) * 1000
             return _make_degraded_signal(
                 self._backend.model_id,

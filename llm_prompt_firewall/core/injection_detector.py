@@ -90,9 +90,10 @@ logger = logging.getLogger(__name__)
 @dataclass(frozen=True)
 class _ProbeRule:
     """A single detection rule with its severity weight."""
+
     pattern: re.Pattern
-    severity: float   # [0.0–1.0] contribution to the axis sub-score
-    label: str        # Short human-readable description for audit/debug
+    severity: float  # [0.0–1.0] contribution to the axis sub-score
+    label: str  # Short human-readable description for audit/debug
 
 
 # ---------------------------------------------------------------------------
@@ -372,7 +373,7 @@ _TOOL_INJECTION_RULES: list[_ProbeRule] = [
         pattern=re.compile(
             r'(?i)["\']?\s*instruction[s]?\s*["\']?\s*:\s*["\']'
             r".{0,200}"
-            r'(ignore|override|disregard|forget|bypass)'
+            r"(ignore|override|disregard|forget|bypass)"
         ),
         severity=0.90,
         label="json_instruction_payload",
@@ -395,9 +396,9 @@ _TOOL_INJECTION_RULES: list[_ProbeRule] = [
 # Axis weights (must sum to 1.0)
 # ---------------------------------------------------------------------------
 
-_WEIGHT_SYSTEM_PROBE:   Final[float] = 0.40
-_WEIGHT_RAG_INJECTION:  Final[float] = 0.35
-_WEIGHT_MULTI_TURN:     Final[float] = 0.15
+_WEIGHT_SYSTEM_PROBE: Final[float] = 0.40
+_WEIGHT_RAG_INJECTION: Final[float] = 0.35
+_WEIGHT_MULTI_TURN: Final[float] = 0.15
 _WEIGHT_TOOL_INJECTION: Final[float] = 0.10
 
 # Minimum score for a detection axis to be reported in violated_boundaries
@@ -449,9 +450,7 @@ class ContextBoundaryDetector:
         # Run all four axes
         probe_score = _score_rules(text, _SYSTEM_PROBE_RULES)
         rag_score = _score_rules(text, _RAG_INJECTION_RULES)
-        multi_turn_score, multi_turn_escalation = _score_multi_turn(
-            text, prior_turns
-        )
+        multi_turn_score, multi_turn_escalation = _score_multi_turn(text, prior_turns)
         tool_score = _score_rules(text, _TOOL_INJECTION_RULES)
 
         # Build the violated boundaries list
@@ -468,10 +467,10 @@ class ContextBoundaryDetector:
         # Weighted ensemble
         confidence = min(
             1.0,
-            probe_score   * _WEIGHT_SYSTEM_PROBE
-            + rag_score   * _WEIGHT_RAG_INJECTION
+            probe_score * _WEIGHT_SYSTEM_PROBE
+            + rag_score * _WEIGHT_RAG_INJECTION
             + multi_turn_score * _WEIGHT_MULTI_TURN
-            + tool_score  * _WEIGHT_TOOL_INJECTION,
+            + tool_score * _WEIGHT_TOOL_INJECTION,
         )
 
         boundary_violation = bool(violated_boundaries)
@@ -604,7 +603,7 @@ def _score_multi_turn(
     # Score prior turns with recency weighting (most recent turn counts most)
     setup_score = 0.0
     for i, turn in enumerate(reversed(prior_turns)):
-        turn_weight = _TURN_DECAY ** i  # 1.0, 0.85, 0.72, ...
+        turn_weight = _TURN_DECAY**i  # 1.0, 0.85, 0.72, ...
         turn_score = _score_rules(turn, _ESCALATION_SETUP_RULES)
         setup_score += turn_score * turn_weight
 

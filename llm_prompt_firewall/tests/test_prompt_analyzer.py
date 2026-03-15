@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
-from unittest.mock import AsyncMock, MagicMock, patch, PropertyMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -41,7 +41,6 @@ from llm_prompt_firewall.models.schemas import (
     ThreatCategory,
 )
 from llm_prompt_firewall.policy.policy_engine import PolicyDecision
-
 
 # ---------------------------------------------------------------------------
 # Signal / decision factories
@@ -299,9 +298,7 @@ class TestShortCircuit:
             llm_classifier=llm_cls,
             context_detector=ctx_det,
             risk_scorer=MagicMock(return_value=_risk_score(1.0, RiskLevel.CRITICAL)),
-            policy_engine=MagicMock(
-                return_value=_policy_decision(FirewallAction.BLOCK)
-            ),
+            policy_engine=MagicMock(return_value=_policy_decision(FirewallAction.BLOCK)),
         )
         # Patch risk_scorer and policy_engine to return via the correct method
         analyzer._risk_scorer.score.return_value = _risk_score(1.0, RiskLevel.CRITICAL)
@@ -561,9 +558,7 @@ class TestFirewallDecisionFields:
         assert decision.effective_prompt == raw
 
     def test_ensemble_short_circuited_false_for_normal_flow(self):
-        analyzer = _make_analyzer(
-            pattern_signal=_pattern_signal(matched=False, confidence=0.0)
-        )
+        analyzer = _make_analyzer(pattern_signal=_pattern_signal(matched=False, confidence=0.0))
         decision = analyzer.inspect(_ctx("Normal text"))
         assert decision.ensemble.pipeline_short_circuited is False
 
@@ -606,7 +601,7 @@ class TestAuditEventBuilder:
         analyzer = _make_analyzer()
         decision = self._decision()
         event = analyzer.build_audit_event(decision, user_id="alice@example.com")
-        expected = hashlib.sha256("alice@example.com".encode()).hexdigest()
+        expected = hashlib.sha256(b"alice@example.com").hexdigest()
         assert event.user_id_hash == expected
 
     def test_user_id_none_stays_none(self):
@@ -655,6 +650,7 @@ class TestAuditEventBuilder:
 
     def test_audit_event_is_frozen(self):
         from pydantic import ValidationError
+
         analyzer = _make_analyzer()
         decision = self._decision()
         event = analyzer.build_audit_event(decision)
@@ -701,6 +697,7 @@ class TestAnalyzerConfig:
         config = AnalyzerConfig()
         # The path attribute should be a Path object
         from pathlib import Path
+
         assert isinstance(config.dataset_path, Path)
 
     def test_default_enable_short_circuit_true(self):

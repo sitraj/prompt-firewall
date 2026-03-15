@@ -62,8 +62,8 @@ from __future__ import annotations
 
 import hashlib
 import logging
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 from llm_prompt_firewall.core.prompt_analyzer import AnalyzerConfig, PromptAnalyzer
 from llm_prompt_firewall.filters.output_filter import OutputFilter
@@ -76,7 +76,6 @@ from llm_prompt_firewall.models.schemas import (
     PromptContext,
     RedactedResponse,
     SafeResponse,
-    ThreatCategory,
 )
 
 logger = logging.getLogger(__name__)
@@ -139,7 +138,7 @@ class PromptFirewall:
     def from_default_config(
         cls,
         audit_logger: AuditLoggerFn | None = None,
-    ) -> "PromptFirewall":
+    ) -> PromptFirewall:
         """
         Build a PromptFirewall using the bundled attack dataset and default policy.
 
@@ -163,7 +162,7 @@ class PromptFirewall:
         cls,
         config: AnalyzerConfig,
         audit_logger: AuditLoggerFn | None = None,
-    ) -> "PromptFirewall":
+    ) -> PromptFirewall:
         """
         Build a PromptFirewall from a custom AnalyzerConfig.
 
@@ -186,7 +185,7 @@ class PromptFirewall:
         cls,
         policy_path: Path,
         audit_logger: AuditLoggerFn | None = None,
-    ) -> "PromptFirewall":
+    ) -> PromptFirewall:
         """
         Build a PromptFirewall with a custom policy file.
 
@@ -344,9 +343,7 @@ class PromptFirewall:
             )
 
         # SANITIZE → redact and return
-        redacted_text, redaction_list = self._output_filter.redact(
-            response_text, inspection
-        )
+        redacted_text, redaction_list = self._output_filter.redact(response_text, inspection)
         original_hash = hashlib.sha256(response_text.encode("utf-8")).hexdigest()
         return RedactedResponse(
             decision_id=decision.decision_id,

@@ -1,13 +1,13 @@
 """Policy engine for the LLM Prompt Injection Firewall."""
 
 from llm_prompt_firewall.policy.policy_engine import (
-    PolicyEngine,
+    CompiledPolicy,
     PolicyConfig,
     PolicyDecision,
-    CompiledPolicy,
+    PolicyEngine,
+    SanitizationPolicy,
     ThresholdPolicy,
     WeightPolicy,
-    SanitizationPolicy,
 )
 
 __all__ = [

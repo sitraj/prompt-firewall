@@ -12,25 +12,25 @@ Available detectors (in pipeline execution order):
   4. ContextBoundaryDetector — structural context-crossing heuristics (~1ms)
 """
 
-from llm_prompt_firewall.detectors.pattern_detector import (
-    PatternDetector,
-    PatternLibrary,
-    PatternEntry,
-    normalise_for_matching,
-)
 from llm_prompt_firewall.detectors.embedding_detector import (
     EmbeddingDetector,
     EmbeddingDetectorUnavailable,
     EmbeddingIndex,
     IndexEntry,
-    chunk_text,
     build_index,
+    chunk_text,
 )
 from llm_prompt_firewall.detectors.llm_classifier import (
-    LLMClassifier,
-    ClassifierBackend,
-    OpenAIBackend,
     AnthropicBackend,
+    ClassifierBackend,
+    LLMClassifier,
+    OpenAIBackend,
+)
+from llm_prompt_firewall.detectors.pattern_detector import (
+    PatternDetector,
+    PatternEntry,
+    PatternLibrary,
+    normalise_for_matching,
 )
 
 __all__ = [

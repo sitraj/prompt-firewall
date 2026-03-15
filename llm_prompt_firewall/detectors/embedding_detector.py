@@ -58,7 +58,7 @@ from __future__ import annotations
 
 import logging
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -100,9 +100,9 @@ MIN_CHUNK_CHARS: int = 20
 # heavily than the same similarity to a SUSPICIOUS one.
 SEVERITY_WEIGHTS: dict[str, float] = {
     RiskLevel.CRITICAL: 1.00,
-    RiskLevel.HIGH:     0.90,
+    RiskLevel.HIGH: 0.90,
     RiskLevel.SUSPICIOUS: 0.70,
-    RiskLevel.SAFE:     0.10,
+    RiskLevel.SAFE: 0.10,
 }
 
 
@@ -157,7 +157,7 @@ class EmbeddingIndex:
     are needed for concurrent reads.
     """
 
-    matrix: np.ndarray            # shape [N, embedding_dim], dtype float32
+    matrix: np.ndarray  # shape [N, embedding_dim], dtype float32
     entries: list[IndexEntry]
     embedding_dim: int
     model_name: str
@@ -167,9 +167,7 @@ class EmbeddingIndex:
     def size(self) -> int:
         return len(self.entries)
 
-    def search(
-        self, query_vector: np.ndarray, top_k: int = 5
-    ) -> list[tuple[float, IndexEntry]]:
+    def search(self, query_vector: np.ndarray, top_k: int = 5) -> list[tuple[float, IndexEntry]]:
         """
         Return the top_k most similar attack vectors to query_vector.
 
@@ -194,10 +192,7 @@ class EmbeddingIndex:
             top_indices = np.argpartition(similarities, -top_k)[-top_k:]
             top_indices = top_indices[np.argsort(similarities[top_indices])[::-1]]
 
-        return [
-            (float(similarities[i]), self.entries[i])
-            for i in top_indices
-        ]
+        return [(float(similarities[i]), self.entries[i]) for i in top_indices]
 
 
 # ---------------------------------------------------------------------------
@@ -207,7 +202,7 @@ class EmbeddingIndex:
 
 def build_index(
     dataset: AttackDataset,
-    model: "SentenceTransformer",
+    model: SentenceTransformer,
 ) -> EmbeddingIndex:
     """
     Embed all canonical prompts and variants from the dataset and build an index.
@@ -230,24 +225,28 @@ def build_index(
 
         # Embed the canonical prompt
         texts.append(sample.canonical_prompt)
-        entries.append(IndexEntry(
-            attack_id=sample.id,
-            source="canonical",
-            category=sample.category,
-            severity=sample.severity,
-            text_preview=sample.canonical_prompt[:80],
-        ))
+        entries.append(
+            IndexEntry(
+                attack_id=sample.id,
+                source="canonical",
+                category=sample.category,
+                severity=sample.severity,
+                text_preview=sample.canonical_prompt[:80],
+            )
+        )
 
         # Embed each variant
         for i, variant in enumerate(sample.variants):
             texts.append(variant.text)
-            entries.append(IndexEntry(
-                attack_id=sample.id,
-                source=f"variant:{i}",
-                category=sample.category,
-                severity=sample.severity,
-                text_preview=variant.text[:80],
-            ))
+            entries.append(
+                IndexEntry(
+                    attack_id=sample.id,
+                    source=f"variant:{i}",
+                    category=sample.category,
+                    severity=sample.severity,
+                    text_preview=variant.text[:80],
+                )
+            )
 
     if not texts:
         logger.warning("EmbeddingIndex built with zero attack vectors — dataset may be empty.")
@@ -268,7 +267,7 @@ def build_index(
         texts,
         batch_size=64,
         show_progress_bar=False,
-        normalize_embeddings=True,   # L2-normalise so dot product == cosine sim
+        normalize_embeddings=True,  # L2-normalise so dot product == cosine sim
         convert_to_numpy=True,
     )
 
@@ -357,7 +356,7 @@ class EmbeddingDetector:
     def __init__(
         self,
         index: EmbeddingIndex,
-        model: "SentenceTransformer",
+        model: SentenceTransformer,
         similarity_threshold: float = DEFAULT_SIMILARITY_THRESHOLD,
     ) -> None:
         self._index = index
@@ -378,7 +377,7 @@ class EmbeddingDetector:
         model_name: str = DEFAULT_MODEL_NAME,
         similarity_threshold: float = DEFAULT_SIMILARITY_THRESHOLD,
         cache_folder: Path | None = None,
-    ) -> "EmbeddingDetector":
+    ) -> EmbeddingDetector:
         """
         Build an EmbeddingDetector from an AttackDataset.
 
@@ -564,7 +563,7 @@ class EmbeddingDetector:
         signals: list[EmbeddingSignal] = []
         processing_ms = (time.perf_counter() - start) * 1000
 
-        for (range_start, range_end) in prompt_chunk_ranges:
+        for range_start, range_end in prompt_chunk_ranges:
             prompt_embeddings = all_embeddings[range_start:range_end]
             best_sim: float = 0.0
             best_entry: IndexEntry | None = None
@@ -580,15 +579,17 @@ class EmbeddingDetector:
                     best_entry = entry
                     best_chunk_idx = chunk_idx
 
-            signals.append(EmbeddingSignal(
-                similarity_score=round(best_sim, 4),
-                nearest_attack_id=best_entry.attack_id if best_entry else None,
-                nearest_attack_category=best_entry.category if best_entry else None,
-                chunk_index=best_chunk_idx if best_entry else None,
-                threshold_used=self._threshold,
-                exceeded_threshold=best_sim >= self._threshold,
-                processing_time_ms=round(processing_ms / len(prompts), 3),
-            ))
+            signals.append(
+                EmbeddingSignal(
+                    similarity_score=round(best_sim, 4),
+                    nearest_attack_id=best_entry.attack_id if best_entry else None,
+                    nearest_attack_category=best_entry.category if best_entry else None,
+                    chunk_index=best_chunk_idx if best_entry else None,
+                    threshold_used=self._threshold,
+                    exceeded_threshold=best_sim >= self._threshold,
+                    processing_time_ms=round(processing_ms / len(prompts), 3),
+                )
+            )
 
         return signals
 

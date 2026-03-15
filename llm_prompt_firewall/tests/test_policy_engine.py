@@ -49,20 +49,13 @@ import threading
 from pathlib import Path
 
 import pytest
-import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT))
 
-from llm_prompt_firewall.core.risk_scoring import RiskScorer
 from llm_prompt_firewall.models.schemas import (
-    ContextBoundarySignal,
-    DetectorEnsemble,
     DetectorType,
     FirewallAction,
-    LLMClassifierSignal,
-    PatternMatch,
-    PatternSignal,
     RiskLevel,
     RiskScore,
     ThreatCategory,
@@ -70,11 +63,9 @@ from llm_prompt_firewall.models.schemas import (
 from llm_prompt_firewall.policy.policy_engine import (
     CompiledPolicy,
     PolicyConfig,
-    PolicyDecision,
     PolicyEngine,
     ThresholdPolicy,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -128,7 +119,9 @@ class TestPolicyConfigValidation:
         assert len(config.block_threat_categories) == len(cats)
 
     def test_valid_yaml_loads(self, tmp_path):
-        path = _write_policy(tmp_path, """
+        path = _write_policy(
+            tmp_path,
+            """
             version: "2.0"
             thresholds:
               block: 0.90
@@ -137,7 +130,8 @@ class TestPolicyConfigValidation:
             block_patterns:
               - "ignore previous instructions"
             default_action: log
-        """)
+        """,
+        )
         engine = PolicyEngine.from_file(path)
         assert engine.current_version == "2.0"
 
@@ -158,11 +152,11 @@ class TestPolicyConfigValidation:
         assert engine.current_version == "1.0"
 
     def test_sanitize_above_block_threshold_rejected(self):
-        with pytest.raises(Exception):
+        with pytest.raises(ValueError):
             ThresholdPolicy(block=0.70, sanitize=0.80, log=0.30)
 
     def test_log_above_sanitize_threshold_rejected(self):
-        with pytest.raises(Exception):
+        with pytest.raises(ValueError):
             ThresholdPolicy(block=0.85, sanitize=0.70, log=0.75)
 
 
@@ -179,6 +173,7 @@ class TestCompiledPolicy:
 
     def test_invalid_regex_skipped(self, caplog):
         import logging
+
         config = PolicyConfig(block_patterns=["[invalid regex"])
         with caplog.at_level(logging.WARNING):
             compiled = CompiledPolicy.from_config(config)
@@ -422,10 +417,13 @@ class TestReload:
         assert result is False
 
     def test_reload_from_valid_file_succeeds(self, tmp_path):
-        path = _write_policy(tmp_path, """
+        path = _write_policy(
+            tmp_path,
+            """
             version: "1.0"
             default_action: allow
-        """)
+        """,
+        )
         engine = PolicyEngine.from_file(path)
         assert engine.current_version == "1.0"
 
@@ -436,10 +434,13 @@ class TestReload:
         assert engine.current_version == "2.0"
 
     def test_reload_from_invalid_file_keeps_old_policy(self, tmp_path):
-        path = _write_policy(tmp_path, """
+        path = _write_policy(
+            tmp_path,
+            """
             version: "1.0"
             default_action: allow
-        """)
+        """,
+        )
         engine = PolicyEngine.from_file(path)
 
         # Corrupt the file
@@ -512,9 +513,7 @@ class TestDefaultPolicyFile:
 
     def test_default_policy_blocks_tool_abuse_category(self):
         engine = PolicyEngine.from_default_file()
-        risk = _risk_score(
-            score=0.30, level=RiskLevel.SAFE, threat=ThreatCategory.TOOL_ABUSE
-        )
+        risk = _risk_score(score=0.30, level=RiskLevel.SAFE, threat=ThreatCategory.TOOL_ABUSE)
         decision = engine.evaluate(risk)
         assert decision.action == FirewallAction.BLOCK
         assert decision.rule_triggered == "block_threat_category"

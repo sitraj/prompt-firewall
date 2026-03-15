@@ -56,7 +56,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Final
 
 from llm_prompt_firewall.models.schemas import (
@@ -71,14 +71,16 @@ logger = logging.getLogger(__name__)
 # Secret pattern library
 # ---------------------------------------------------------------------------
 
+
 @dataclass(frozen=True)
 class SecretPattern:
     """A compiled pattern for detecting a specific credential type."""
+
     secret_type: str
     pattern: re.Pattern
-    severity: float            # [0.0–1.0] — how bad a leak of this type is
-    redaction_label: str       # replacement string in redacted output
-    mask_preview_fn: "staticmethod | None" = None  # optional: how to mask for logs
+    severity: float  # [0.0–1.0] — how bad a leak of this type is
+    redaction_label: str  # replacement string in redacted output
+    mask_preview_fn: staticmethod | None = None  # optional: how to mask for logs
 
 
 def _mask_middle(value: str, keep: int = 4) -> str:
@@ -134,9 +136,7 @@ SECRET_PATTERNS: list[SecretPattern] = [
     SecretPattern(
         secret_type="jwt_token",
         # Header.Payload.Signature — all base64url encoded
-        pattern=re.compile(
-            r"\beyJ[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_\.+/=]*\b"
-        ),
+        pattern=re.compile(r"\beyJ[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_\.+/=]*\b"),
         severity=0.90,
         redaction_label="[JWT_TOKEN_REDACTED]",
     ),
@@ -185,18 +185,14 @@ SECRET_PATTERNS: list[SecretPattern] = [
     SecretPattern(
         secret_type="email_address",
         # Broad email pattern — used for exfiltration vector detection, lower severity
-        pattern=re.compile(
-            r"\b[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}\b"
-        ),
+        pattern=re.compile(r"\b[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}\b"),
         severity=0.30,  # Low severity alone; elevated when combined with high input risk
         redaction_label="[EMAIL_REDACTED]",
     ),
     SecretPattern(
         secret_type="url_with_query",
         # URLs with query params (potential exfiltration endpoint)
-        pattern=re.compile(
-            r"https?://[A-Za-z0-9.\-_~:/?#\[\]@!$&'()*+,;=%]{20,}"
-        ),
+        pattern=re.compile(r"https?://[A-Za-z0-9.\-_~:/?#\[\]@!$&'()*+,;=%]{20,}"),
         severity=0.20,  # Low severity alone; elevated in high-risk context
         redaction_label="[URL_REDACTED]",
     ),
@@ -274,6 +270,7 @@ class OutputFilter:
             a response safe to return to the caller.
         """
         import time
+
         start = time.perf_counter()
 
         secret_matches: list[SecretMatch] = []
@@ -303,13 +300,15 @@ class OutputFilter:
                     continue
 
                 masked = _mask_middle(matched_value)
-                secret_matches.append(SecretMatch(
-                    secret_type=sp.secret_type,
-                    pattern_id=f"secret:{sp.secret_type}",
-                    offset=m.start(),
-                    redacted_sample=masked,
-                    severity=sp.severity,
-                ))
+                secret_matches.append(
+                    SecretMatch(
+                        secret_type=sp.secret_type,
+                        pattern_id=f"secret:{sp.secret_type}",
+                        offset=m.start(),
+                        redacted_sample=masked,
+                        severity=sp.severity,
+                    )
+                )
 
                 if sp.severity >= self._block_severity:
                     high_severity_found = True
@@ -324,14 +323,10 @@ class OutputFilter:
         # --- System prompt echo detection ---
         system_prompt_echo = response_contains_system_prompt_fragments
         if system_prompt_hash and not system_prompt_echo:
-            system_prompt_echo = _detect_system_prompt_echo(
-                response_text, system_prompt_hash
-            )
+            system_prompt_echo = _detect_system_prompt_echo(response_text, system_prompt_hash)
 
         if system_prompt_echo:
-            logger.warning(
-                "OutputFilter: possible system prompt echo detected in response."
-            )
+            logger.warning("OutputFilter: possible system prompt echo detected in response.")
 
         # --- Exfiltration vector detection ---
         # Only flag emails/URLs as exfiltration when the input was already suspicious.
@@ -355,11 +350,7 @@ class OutputFilter:
                 )
 
         # --- Determine recommended action ---
-        clean = (
-            not secret_matches
-            and not system_prompt_echo
-            and not exfil_detected
-        )
+        clean = not secret_matches and not system_prompt_echo and not exfil_detected
 
         if system_prompt_echo or high_severity_found:
             recommended = FirewallAction.BLOCK
@@ -401,10 +392,13 @@ class OutputFilter:
             if not any(sm.secret_type == sp.secret_type for sm in result.secret_matches):
                 continue
 
-            def _replace(m: re.Match, label: str = sp.redaction_label) -> str:
+            def _replace(
+                m: re.Match,
+                label: str = sp.redaction_label,
+                stype: str = sp.secret_type,
+            ) -> str:
                 redactions.append(
-                    f"Redacted {sp.secret_type} at offset {m.start()} "
-                    f"({_mask_middle(m.group(0))})."
+                    f"Redacted {stype} at offset {m.start()} ({_mask_middle(m.group(0))})."
                 )
                 return label
 
@@ -419,6 +413,7 @@ class OutputFilter:
 # ---------------------------------------------------------------------------
 # Private helpers
 # ---------------------------------------------------------------------------
+
 
 def _detect_system_prompt_echo(response: str, system_prompt_hash: str) -> bool:
     """
@@ -460,12 +455,15 @@ def _detect_exfiltration_vectors(
     email_pattern = _SECRET_PATTERN_INDEX.get("email_address")
     url_pattern = _SECRET_PATTERN_INDEX.get("url_with_query")
 
-    if email_pattern and "email_address" not in already_matched_types:
-        if email_pattern.pattern.search(response):
-            return True
+    if (
+        email_pattern
+        and "email_address" not in already_matched_types
+        and email_pattern.pattern.search(response)
+    ):
+        return True
 
-    if url_pattern and "url_with_query" not in already_matched_types:
-        if url_pattern.pattern.search(response):
-            return True
-
-    return False
+    return bool(
+        url_pattern
+        and "url_with_query" not in already_matched_types
+        and url_pattern.pattern.search(response)
+    )

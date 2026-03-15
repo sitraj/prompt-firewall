@@ -19,21 +19,16 @@ from __future__ import annotations
 import asyncio
 import hashlib
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch, call
-
-import pytest
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from llm_prompt_firewall.firewall import PromptFirewall, _build_block_reason
 from llm_prompt_firewall.models.schemas import (
     AuditEvent,
     BlockedResponse,
-    ContextBoundarySignal,
     DetectorEnsemble,
     DetectorType,
-    EmbeddingSignal,
     FirewallAction,
     FirewallDecision,
-    LLMClassifierSignal,
     OutputInspectionResult,
     PatternSignal,
     PromptContext,
@@ -45,7 +40,6 @@ from llm_prompt_firewall.models.schemas import (
     SecretMatch,
     ThreatCategory,
 )
-
 
 # ---------------------------------------------------------------------------
 # Shared factories
@@ -245,7 +239,7 @@ class TestFirewallInit:
             patch("llm_prompt_firewall.firewall.PromptAnalyzer") as MockAnalyzer,
             patch("llm_prompt_firewall.firewall.OutputFilter") as MockFilter,
         ):
-            fw = PromptFirewall()
+            PromptFirewall()
             MockAnalyzer.assert_called_once()
             MockFilter.assert_called_once()
 
@@ -362,6 +356,7 @@ class TestInspectInputAsync:
 
     def test_audit_logger_error_does_not_propagate(self):
         """An exception from the audit logger must never block the request path."""
+
         def bad_logger(event):
             raise RuntimeError("Kafka is down!")
 
@@ -473,7 +468,9 @@ class TestInspectOutput:
         insp = _dirty_inspection(action=FirewallAction.BLOCK, system_prompt_echo=True)
         fw, _, output_filter = _make_firewall(inspection=insp)
         output_filter.inspect.return_value = insp
-        result = fw.inspect_output("System prompt: you are a helpful assistant...", _allow_decision())
+        result = fw.inspect_output(
+            "System prompt: you are a helpful assistant...", _allow_decision()
+        )
         assert isinstance(result, BlockedResponse)
 
     def test_blocked_response_decision_id_matches(self):

@@ -52,7 +52,7 @@ Design decisions:
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from llm_prompt_firewall.models.schemas import (
     ContextBoundarySignal,
@@ -93,6 +93,7 @@ class WeightConfig:
       Context boundary (0.10): structural heuristics. Supplementary signal,
           lower weight — it fires broadly and needs other detectors to confirm.
     """
+
     pattern: float = 0.30
     embedding: float = 0.25
     llm_classifier: float = 0.35
@@ -118,6 +119,7 @@ class ThresholdConfig:
     (suspicious_max – high_max] → HIGH       → SANITIZE
     (high_max – 1.00]        → CRITICAL   → BLOCK
     """
+
     safe_max: float = 0.39
     suspicious_max: float = 0.69
     high_max: float = 0.84
@@ -133,10 +135,10 @@ class ThresholdConfig:
 
     def recommended_action(self, level: RiskLevel) -> FirewallAction:
         return {
-            RiskLevel.SAFE:       FirewallAction.ALLOW,
+            RiskLevel.SAFE: FirewallAction.ALLOW,
             RiskLevel.SUSPICIOUS: FirewallAction.LOG,
-            RiskLevel.HIGH:       FirewallAction.SANITIZE,
-            RiskLevel.CRITICAL:   FirewallAction.BLOCK,
+            RiskLevel.HIGH: FirewallAction.SANITIZE,
+            RiskLevel.CRITICAL: FirewallAction.BLOCK,
         }[level]
 
 
@@ -222,9 +224,12 @@ def _resolve_primary_threat(
         return best.category
 
     # Embedding: nearest attack in index
-    if embedding is not None and embedding.nearest_attack_category is not None:
-        if embedding.similarity_score > 0.50:
-            return embedding.nearest_attack_category
+    if (
+        embedding is not None
+        and embedding.nearest_attack_category is not None
+        and embedding.similarity_score > 0.50
+    ):
+        return embedding.nearest_attack_category
 
     # Context boundary: coarse structural detection
     if context is not None and context.boundary_violation_detected:
@@ -283,9 +288,7 @@ def _build_explanation(
         parts.append("LLM classifier: DEGRADED (excluded from ensemble).")
 
     if context and context.boundary_violation_detected:
-        parts.append(
-            f"Context boundary: violations {context.violated_boundaries}."
-        )
+        parts.append(f"Context boundary: violations {context.violated_boundaries}.")
 
     return " ".join(parts)
 
@@ -334,11 +337,7 @@ class RiskScorer:
         # --- Short-circuit propagation ---
         # When the pattern detector flagged a CRITICAL match and the pipeline
         # exited early, we skip all ensemble math. The score is 1.0.
-        if (
-            ensemble.pipeline_short_circuited
-            and pattern is not None
-            and pattern.confidence >= 1.0
-        ):
+        if ensemble.pipeline_short_circuited and pattern is not None and pattern.confidence >= 1.0:
             level = RiskLevel.CRITICAL
             primary_threat = _resolve_primary_threat(pattern, embedding, llm, context)
             explanation = _build_explanation(
@@ -395,9 +394,7 @@ class RiskScorer:
 
         # --- Weighted ensemble with renormalisation ---
         # Sum the configured weights for active detectors only.
-        total_weight = sum(
-            self._weights.for_detector(det) for det, _ in raw_signals
-        )
+        total_weight = sum(self._weights.for_detector(det) for det, _ in raw_signals)
 
         if total_weight == 0.0:
             # All active detectors have zero weight — shouldn't happen with
@@ -409,8 +406,7 @@ class RiskScorer:
             total_weight = 1.0
 
         weighted_sum = sum(
-            self._weights.for_detector(det) * raw_score
-            for det, raw_score in raw_signals
+            self._weights.for_detector(det) * raw_score for det, raw_score in raw_signals
         )
 
         # Renormalised score: divide by active weight sum, not 1.0
@@ -432,7 +428,12 @@ class RiskScorer:
         contributing = [det for det, _ in raw_signals]
 
         explanation = _build_explanation(
-            ensemble_score, level, pattern, embedding, llm, context,
+            ensemble_score,
+            level,
+            pattern,
+            embedding,
+            llm,
+            context,
             short_circuited=False,
         )
 

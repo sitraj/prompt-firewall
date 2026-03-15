@@ -127,11 +127,16 @@ class AnalyzerConfig:
     All paths default to the bundled package assets. Override to use
     custom datasets or policy files without subclassing.
     """
+
     dataset_path: Path = field(
-        default_factory=lambda: Path(__file__).parent.parent / "datasets" / "prompt_injection_attacks.json"
+        default_factory=lambda: (
+            Path(__file__).parent.parent / "datasets" / "prompt_injection_attacks.json"
+        )
     )
     policy_path: Path | None = field(
-        default_factory=lambda: Path(__file__).parent.parent.parent / "config" / "default_policy.yaml"
+        default_factory=lambda: (
+            Path(__file__).parent.parent.parent / "config" / "default_policy.yaml"
+        )
     )
     # Which detectors to enable (all default True)
     enable_pattern_detector: bool = True
@@ -172,9 +177,9 @@ class PromptAnalyzer:
 
     def __init__(
         self,
-        pattern_detector: "PatternDetector | None" = None,
-        embedding_detector: "EmbeddingDetector | None" = None,
-        llm_classifier: "LLMClassifier | None" = None,
+        pattern_detector: PatternDetector | None = None,
+        embedding_detector: EmbeddingDetector | None = None,
+        llm_classifier: LLMClassifier | None = None,
         context_detector: ContextBoundaryDetector | None = None,
         risk_scorer: RiskScorer | None = None,
         policy_engine: PolicyEngine | None = None,
@@ -205,7 +210,7 @@ class PromptAnalyzer:
     # ------------------------------------------------------------------
 
     @classmethod
-    def from_config(cls, config: AnalyzerConfig) -> "PromptAnalyzer":
+    def from_config(cls, config: AnalyzerConfig) -> PromptAnalyzer:
         """
         Build a PromptAnalyzer from an AnalyzerConfig.
 
@@ -227,27 +232,26 @@ class PromptAnalyzer:
         embedding_detector = None
         if config.enable_embedding_detector and config.dataset_path.exists():
             try:
+                import json
+
                 from llm_prompt_firewall.detectors.embedding_detector import (
                     EmbeddingDetector,
-                    EmbeddingDetectorUnavailable,
                 )
-                import json
 
                 with config.dataset_path.open(encoding="utf-8") as fh:
                     raw = json.load(fh)
-                from llm_prompt_firewall.models.schemas import AttackDataset
                 from datetime import datetime
+
+                from llm_prompt_firewall.models.schemas import AttackDataset
+
                 for dt_field in ("created_at", "updated_at"):
                     if isinstance(raw.get(dt_field), str):
-                        raw[dt_field] = datetime.fromisoformat(
-                            raw[dt_field].replace("Z", "+00:00")
-                        )
+                        raw[dt_field] = datetime.fromisoformat(raw[dt_field].replace("Z", "+00:00"))
                 dataset = AttackDataset(**raw)
                 embedding_detector = EmbeddingDetector.from_dataset(dataset)
             except Exception as exc:
                 logger.warning(
-                    "PromptAnalyzer: embedding detector unavailable (%s) — "
-                    "continuing without it.",
+                    "PromptAnalyzer: embedding detector unavailable (%s) — continuing without it.",
                     exc,
                 )
 
@@ -258,8 +262,7 @@ class PromptAnalyzer:
                 policy_engine = PolicyEngine.from_file(config.policy_path)
             except Exception as exc:
                 logger.warning(
-                    "PromptAnalyzer: failed to load policy from %s (%s) — "
-                    "using built-in defaults.",
+                    "PromptAnalyzer: failed to load policy from %s (%s) — using built-in defaults.",
                     config.policy_path,
                     exc,
                 )
@@ -275,7 +278,7 @@ class PromptAnalyzer:
         )
 
     @classmethod
-    def from_default_config(cls) -> "PromptAnalyzer":
+    def from_default_config(cls) -> PromptAnalyzer:
         """Build a PromptAnalyzer using bundled dataset and default policy."""
         return cls.from_config(AnalyzerConfig())
 
@@ -299,20 +302,14 @@ class PromptAnalyzer:
         pipeline_start = time.perf_counter()
 
         # Step 1: Pre-detection normalisation (for detection only)
-        normalized = self._input_filter.apply_pre_detection_normalization(
-            prompt_context.raw_prompt
-        )
+        normalized = self._input_filter.apply_pre_detection_normalization(prompt_context.raw_prompt)
 
         # Step 2: Pattern detection
         pattern_signal: PatternSignal | None = None
         short_circuited = False
         if self._pattern_detector is not None:
             pattern_signal = self._pattern_detector.inspect(normalized)
-            if (
-                self._short_circuit
-                and pattern_signal.matched
-                and pattern_signal.confidence >= 1.0
-            ):
+            if self._short_circuit and pattern_signal.matched and pattern_signal.confidence >= 1.0:
                 short_circuited = True
                 logger.info(
                     "PromptAnalyzer: pipeline short-circuited on pattern hit "
@@ -345,9 +342,7 @@ class PromptAnalyzer:
                 )
 
         # Step 5: Context boundary detection (always runs)
-        context_signal: ContextBoundarySignal = self._context_detector.inspect(
-            prompt_context
-        )
+        context_signal: ContextBoundarySignal = self._context_detector.inspect(prompt_context)
 
         # Step 6: Ensemble assembly + risk scoring
         pipeline_time_ms = (time.perf_counter() - pipeline_start) * 1000
@@ -428,6 +423,7 @@ class PromptAnalyzer:
             # Caller is inside an async context — cannot use asyncio.run().
             # Run the coroutine in a separate thread to avoid deadlock.
             import concurrent.futures
+
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
                 future = pool.submit(asyncio.run, self.inspect_async(prompt_context))
                 return future.result()
@@ -494,21 +490,23 @@ class PromptAnalyzer:
             primary_threat=risk.primary_threat,
             action_taken=decision.action,
             pattern_confidence=(
-                ensemble.pattern_signal.confidence
-                if ensemble.pattern_signal is not None else None
+                ensemble.pattern_signal.confidence if ensemble.pattern_signal is not None else None
             ),
             embedding_similarity=(
                 ensemble.embedding_signal.similarity_score
-                if ensemble.embedding_signal is not None else None
+                if ensemble.embedding_signal is not None
+                else None
             ),
             llm_classifier_score=(
                 ensemble.llm_classifier_signal.risk_score
                 if ensemble.llm_classifier_signal is not None
-                and not ensemble.llm_classifier_signal.degraded else None
+                and not ensemble.llm_classifier_signal.degraded
+                else None
             ),
             context_boundary_confidence=(
                 ensemble.context_boundary_signal.confidence
-                if ensemble.context_boundary_signal is not None else None
+                if ensemble.context_boundary_signal is not None
+                else None
             ),
             pipeline_short_circuited=ensemble.pipeline_short_circuited,
             total_latency_ms=ensemble.total_pipeline_time_ms,

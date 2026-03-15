@@ -37,7 +37,6 @@ from typing import Final
 from llm_prompt_firewall.models.schemas import (
     AttackDataset,
     AttackSample,
-    DetectorType,
     FirewallAction,
     PatternMatch,
     PatternSignal,
@@ -62,9 +61,9 @@ MIN_PATTERN_LENGTH: Final[int] = 6
 # dominates the score regardless of how many LOW matches also fired.
 SEVERITY_WEIGHTS: Final[dict[str, float]] = {
     RiskLevel.CRITICAL: 1.00,
-    RiskLevel.HIGH:     0.75,
+    RiskLevel.HIGH: 0.75,
     RiskLevel.SUSPICIOUS: 0.45,
-    RiskLevel.SAFE:     0.10,
+    RiskLevel.SAFE: 0.10,
 }
 
 # Confidence dampening factor applied to broad/unanchored patterns.
@@ -79,22 +78,24 @@ PATTERN_FLAGS: Final[int] = re.IGNORECASE | re.UNICODE
 
 # Invisible / zero-width Unicode characters commonly used to split attack
 # keywords and evade detection. These are stripped before matching.
-INVISIBLE_CHARS: Final[frozenset[str]] = frozenset([
-    "\u200b",  # ZERO WIDTH SPACE
-    "\u200c",  # ZERO WIDTH NON-JOINER
-    "\u200d",  # ZERO WIDTH JOINER
-    "\u00ad",  # SOFT HYPHEN
-    "\u2060",  # WORD JOINER
-    "\ufeff",  # ZERO WIDTH NO-BREAK SPACE (BOM)
-    "\u202a",  # LEFT-TO-RIGHT EMBEDDING
-    "\u202b",  # RIGHT-TO-LEFT EMBEDDING
-    "\u202c",  # POP DIRECTIONAL FORMATTING
-    "\u202d",  # LEFT-TO-RIGHT OVERRIDE
-    "\u202e",  # RIGHT-TO-LEFT OVERRIDE
-    "\u2066",  # LEFT-TO-RIGHT ISOLATE
-    "\u2067",  # RIGHT-TO-LEFT ISOLATE
-    "\u2069",  # POP DIRECTIONAL ISOLATE
-])
+INVISIBLE_CHARS: Final[frozenset[str]] = frozenset(
+    [
+        "\u200b",  # ZERO WIDTH SPACE
+        "\u200c",  # ZERO WIDTH NON-JOINER
+        "\u200d",  # ZERO WIDTH JOINER
+        "\u00ad",  # SOFT HYPHEN
+        "\u2060",  # WORD JOINER
+        "\ufeff",  # ZERO WIDTH NO-BREAK SPACE (BOM)
+        "\u202a",  # LEFT-TO-RIGHT EMBEDDING
+        "\u202b",  # RIGHT-TO-LEFT EMBEDDING
+        "\u202c",  # POP DIRECTIONAL FORMATTING
+        "\u202d",  # LEFT-TO-RIGHT OVERRIDE
+        "\u202e",  # RIGHT-TO-LEFT OVERRIDE
+        "\u2066",  # LEFT-TO-RIGHT ISOLATE
+        "\u2067",  # RIGHT-TO-LEFT ISOLATE
+        "\u2069",  # POP DIRECTIONAL ISOLATE
+    ]
+)
 
 # Leet-speak normalisation table. Maps common leet substitutions back to the
 # canonical ASCII letter so that "1gnore" is treated the same as "ignore".
@@ -164,14 +165,12 @@ class PatternLibrary:
     """
 
     entries: list[PatternEntry] = field(default_factory=list)
-    entries_by_category: dict[ThreatCategory, list[PatternEntry]] = field(
-        default_factory=dict
-    )
+    entries_by_category: dict[ThreatCategory, list[PatternEntry]] = field(default_factory=dict)
     total_patterns: int = 0
     dataset_version: str = "unknown"
 
     @classmethod
-    def from_dataset(cls, dataset: AttackDataset) -> "PatternLibrary":
+    def from_dataset(cls, dataset: AttackDataset) -> PatternLibrary:
         """
         Build a PatternLibrary from a validated AttackDataset.
 
@@ -194,13 +193,14 @@ class PatternLibrary:
         return lib
 
     def _load_sample_patterns(self, sample: AttackSample) -> None:
-        severity_weight = SEVERITY_WEIGHTS.get(sample.severity, 0.5)
-
         for idx, raw in enumerate(sample.pattern_signatures):
             if len(raw) < MIN_PATTERN_LENGTH:
                 logger.debug(
                     "Skipping short pattern '%s' from sample %s (len=%d < %d)",
-                    raw, sample.id, len(raw), MIN_PATTERN_LENGTH,
+                    raw,
+                    sample.id,
+                    len(raw),
+                    MIN_PATTERN_LENGTH,
                 )
                 continue
 
@@ -209,7 +209,10 @@ class PatternLibrary:
             except re.error as exc:
                 logger.warning(
                     "Invalid regex in sample %s, signature index %d: %s — skipping. Error: %s",
-                    sample.id, idx, raw, exc,
+                    sample.id,
+                    idx,
+                    raw,
+                    exc,
                 )
                 continue
 
@@ -330,13 +333,13 @@ class PatternDetector:
         )
 
     @classmethod
-    def from_dataset(cls, dataset: AttackDataset) -> "PatternDetector":
+    def from_dataset(cls, dataset: AttackDataset) -> PatternDetector:
         """Convenience constructor that builds the PatternLibrary from an AttackDataset."""
         library = PatternLibrary.from_dataset(dataset)
         return cls(library)
 
     @classmethod
-    def from_dataset_file(cls, path: Path) -> "PatternDetector":
+    def from_dataset_file(cls, path: Path) -> PatternDetector:
         """
         Load an AttackDataset from a JSON file on disk and build the detector.
 
@@ -356,11 +359,10 @@ class PatternDetector:
 
         # Datetime fields need coercion from ISO strings
         from datetime import datetime
+
         for dt_field in ("created_at", "updated_at"):
             if isinstance(raw.get(dt_field), str):
-                raw[dt_field] = datetime.fromisoformat(
-                    raw[dt_field].replace("Z", "+00:00")
-                )
+                raw[dt_field] = datetime.fromisoformat(raw[dt_field].replace("Z", "+00:00"))
 
         dataset = AttackDataset(**raw)
         return cls.from_dataset(dataset)
@@ -411,9 +413,7 @@ class PatternDetector:
             severity_weight = SEVERITY_WEIGHTS.get(entry.severity, 0.5)
             # Dampen broad patterns to avoid over-confident false positives
             effective_weight = (
-                severity_weight * BROAD_PATTERN_DAMPEN
-                if entry.is_broad
-                else severity_weight
+                severity_weight * BROAD_PATTERN_DAMPEN if entry.is_broad else severity_weight
             )
 
             pattern_match = PatternMatch(
@@ -459,9 +459,7 @@ class PatternDetector:
             processing_time_ms=round(processing_ms, 3),
         )
 
-    def inspect_category(
-        self, raw_prompt: str, category: ThreatCategory
-    ) -> PatternSignal:
+    def inspect_category(self, raw_prompt: str, category: ThreatCategory) -> PatternSignal:
         """
         Inspect against patterns from a single ThreatCategory only.
 
@@ -481,18 +479,18 @@ class PatternDetector:
 
             severity_weight = SEVERITY_WEIGHTS.get(entry.severity, 0.5)
             effective_weight = (
-                severity_weight * BROAD_PATTERN_DAMPEN
-                if entry.is_broad
-                else severity_weight
+                severity_weight * BROAD_PATTERN_DAMPEN if entry.is_broad else severity_weight
             )
-            matches.append(PatternMatch(
-                pattern_id=entry.pattern_id,
-                pattern_text=entry.raw_pattern,
-                matched_text=match.group(0),
-                category=entry.category,
-                severity=effective_weight,
-                offset=match.start(),
-            ))
+            matches.append(
+                PatternMatch(
+                    pattern_id=entry.pattern_id,
+                    pattern_text=entry.raw_pattern,
+                    matched_text=match.group(0),
+                    category=entry.category,
+                    severity=effective_weight,
+                    offset=match.start(),
+                )
+            )
 
         processing_ms = (time.perf_counter() - start) * 1000
 

@@ -52,7 +52,6 @@ Environment variables:
 
 from __future__ import annotations
 
-import json
 import logging
 import os
 import time
@@ -62,17 +61,15 @@ from pathlib import Path
 from threading import Lock
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Request, status
-from fastapi.responses import JSONResponse, Response
+from fastapi import FastAPI, HTTPException, status
+from fastapi.responses import Response
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from pydantic import BaseModel, Field
 
 from llm_prompt_firewall import metrics as fw_metrics
-
 from llm_prompt_firewall.firewall import PromptFirewall
 from llm_prompt_firewall.models.schemas import (
     AuditEvent,
-    BlockedResponse,
     FirewallAction,
     FirewallDecision,
     PromptContext,
@@ -158,7 +155,7 @@ def _make_audit_logger() -> Any:
     """Return a callable that writes AuditEvents to the configured sink."""
     audit_path = os.environ.get("FIREWALL_AUDIT_LOG_FILE")
     if audit_path:
-        audit_file = open(audit_path, "a", buffering=1, encoding="utf-8")  # noqa: WPS515
+        audit_file = open(audit_path, "a", buffering=1, encoding="utf-8")  # noqa: SIM115
 
         def _file_logger(event: AuditEvent) -> None:
             line = event.model_dump_json()
@@ -166,6 +163,7 @@ def _make_audit_logger() -> Any:
 
         return _file_logger
     else:
+
         def _log_logger(event: AuditEvent) -> None:
             logger.info("AUDIT %s", event.model_dump_json())
 
@@ -415,16 +413,12 @@ async def inspect_input(request: InspectInputRequest) -> InspectInputResponse:
         effective_prompt=decision.effective_prompt,
         block_reason=decision.block_reason,
         pipeline_short_circuited=ens.pipeline_short_circuited,
-        pattern_confidence=(
-            ens.pattern_signal.confidence if ens.pattern_signal else None
-        ),
+        pattern_confidence=(ens.pattern_signal.confidence if ens.pattern_signal else None),
         embedding_similarity=(
             ens.embedding_signal.similarity_score if ens.embedding_signal else None
         ),
         context_boundary_confidence=(
-            ens.context_boundary_signal.confidence
-            if ens.context_boundary_signal
-            else None
+            ens.context_boundary_signal.confidence if ens.context_boundary_signal else None
         ),
     )
 

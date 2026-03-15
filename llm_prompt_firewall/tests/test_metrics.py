@@ -9,7 +9,6 @@ Test structure:
 
 from __future__ import annotations
 
-import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -21,7 +20,6 @@ import llm_prompt_firewall.metrics as fw_metrics
 from llm_prompt_firewall.api import app
 from llm_prompt_firewall.models.schemas import (
     BlockedResponse,
-    ContextBoundarySignal,
     DetectorEnsemble,
     DetectorType,
     FirewallAction,
@@ -29,13 +27,11 @@ from llm_prompt_firewall.models.schemas import (
     OutputInspectionResult,
     PatternSignal,
     PromptContext,
-    RedactedResponse,
     RiskLevel,
     RiskScore,
     SafeResponse,
     ThreatCategory,
 )
-
 
 # ---------------------------------------------------------------------------
 # Shared factories (mirrors test_api.py helpers)
@@ -95,14 +91,16 @@ def _make_mock_firewall(
 @pytest.fixture()
 def client():
     mock_fw = _make_mock_firewall()
-    with patch(
-        "llm_prompt_firewall.api.PromptFirewall.from_default_config",
-        return_value=mock_fw,
+    with (
+        patch(
+            "llm_prompt_firewall.api.PromptFirewall.from_default_config",
+            return_value=mock_fw,
+        ),
+        TestClient(app) as c,
     ):
-        with TestClient(app) as c:
-            api_module._firewall = mock_fw
-            api_module._decision_cache.clear()
-            yield c, mock_fw
+        api_module._firewall = mock_fw
+        api_module._decision_cache.clear()
+        yield c, mock_fw
     api_module._firewall = None
     api_module._decision_cache.clear()
 
@@ -117,9 +115,10 @@ def _counter_value(metric_name: str, **labels) -> float:
     for metric in REGISTRY.collect():
         if metric.name == metric_name:
             for sample in metric.samples:
-                if sample.name == metric_name + "_total":
-                    if all(sample.labels.get(k) == v for k, v in labels.items()):
-                        return sample.value
+                if sample.name == metric_name + "_total" and all(
+                    sample.labels.get(k) == v for k, v in labels.items()
+                ):
+                    return sample.value
     return 0.0
 
 
@@ -158,7 +157,9 @@ class TestRecordHelpers:
 
     def test_record_output_redacted_increments_counter(self):
         before = _counter_value("firewall_output_inspections", outcome="redacted")
-        fw_metrics.record_output("redacted", duration_seconds=0.002, secret_types=["aws_access_key"])
+        fw_metrics.record_output(
+            "redacted", duration_seconds=0.002, secret_types=["aws_access_key"]
+        )
         after = _counter_value("firewall_output_inspections", outcome="redacted")
         assert after == before + 1
 
@@ -176,8 +177,13 @@ class TestRecordHelpers:
             duration_seconds=0.001,
             secret_types=["aws_access_key", "private_key"],
         )
-        assert _counter_value("firewall_secrets_detected", secret_type="aws_access_key") == before_aws + 1
-        assert _counter_value("firewall_secrets_detected", secret_type="private_key") == before_pk + 1
+        assert (
+            _counter_value("firewall_secrets_detected", secret_type="aws_access_key")
+            == before_aws + 1
+        )
+        assert (
+            _counter_value("firewall_secrets_detected", secret_type="private_key") == before_pk + 1
+        )
 
     def test_record_output_no_secret_types_does_not_increment_secrets(self):
         before = _counter_value("firewall_secrets_detected", secret_type="generic_password")

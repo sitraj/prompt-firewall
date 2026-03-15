@@ -206,8 +206,7 @@ class PolicyConfig(BaseModel):
         valid = {a.value for a in FirewallAction}
         if v not in valid:
             raise ValueError(
-                f"default_action '{v}' is not a valid FirewallAction. "
-                f"Valid values: {sorted(valid)}"
+                f"default_action '{v}' is not a valid FirewallAction. Valid values: {sorted(valid)}"
             )
         return v
 
@@ -250,7 +249,7 @@ class CompiledPolicy:
     default_action: FirewallAction = FirewallAction.ALLOW
 
     @classmethod
-    def from_config(cls, config: PolicyConfig) -> "CompiledPolicy":
+    def from_config(cls, config: PolicyConfig) -> CompiledPolicy:
         block_compiled: list[re.Pattern] = []
         for pat in config.block_patterns:
             try:
@@ -351,7 +350,7 @@ class PolicyEngine:
     # ------------------------------------------------------------------
 
     @classmethod
-    def from_file(cls, path: Path) -> "PolicyEngine":
+    def from_file(cls, path: Path) -> PolicyEngine:
         """
         Load a policy from a YAML file and return a PolicyEngine.
 
@@ -366,7 +365,7 @@ class PolicyEngine:
         return engine
 
     @classmethod
-    def with_defaults(cls) -> "PolicyEngine":
+    def with_defaults(cls) -> PolicyEngine:
         """
         Build a PolicyEngine using only default values (no YAML file).
 
@@ -378,7 +377,7 @@ class PolicyEngine:
         return cls(compiled)
 
     @classmethod
-    def from_default_file(cls) -> "PolicyEngine":
+    def from_default_file(cls) -> PolicyEngine:
         """Load from the package's built-in default_policy.yaml."""
         if DEFAULT_POLICY_PATH.exists():
             return cls.from_file(DEFAULT_POLICY_PATH)
@@ -622,9 +621,7 @@ def _load_policy_file(path: Path) -> PolicyConfig:
     try:
         config = PolicyConfig(**raw)
     except Exception as exc:
-        raise ValueError(
-            f"Policy file '{path}' failed schema validation: {exc}"
-        ) from exc
+        raise ValueError(f"Policy file '{path}' failed schema validation: {exc}") from exc
 
     logger.debug("Loaded policy from %s (version=%s)", path, config.version)
     return config

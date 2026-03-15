@@ -31,7 +31,6 @@ from llm_prompt_firewall.models.schemas import (
     ThreatCategory,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helper builders
 # ---------------------------------------------------------------------------
@@ -154,18 +153,20 @@ def client():
 
     mock_fw = _make_mock_firewall()
 
-    with patch(
-        "llm_prompt_firewall.api.PromptFirewall.from_default_config",
-        return_value=mock_fw,
+    with (
+        patch(
+            "llm_prompt_firewall.api.PromptFirewall.from_default_config",
+            return_value=mock_fw,
+        ),
+        TestClient(app) as c,
     ):
-        with TestClient(app) as c:
-            # Lifespan has run; _firewall is now our mock_fw.
-            # Replace with our mock explicitly so tests that mutate
-            # mock_fw.inspect_output etc. work correctly.
-            api_module._firewall = mock_fw
-            api_module._decision_cache.clear()
-            yield c, mock_fw
-            api_module._decision_cache.clear()
+        # Lifespan has run; _firewall is now our mock_fw.
+        # Replace with our mock explicitly so tests that mutate
+        # mock_fw.inspect_output etc. work correctly.
+        api_module._firewall = mock_fw
+        api_module._decision_cache.clear()
+        yield c, mock_fw
+        api_module._decision_cache.clear()
 
 
 # ---------------------------------------------------------------------------
@@ -273,16 +274,18 @@ class TestInspectInputEndpoint:
         assert data["pattern_confidence"] == 0.0
 
     def test_optional_fields_forwarded(self, client):
-        import llm_prompt_firewall.api as api_module
 
         c, mock_fw = client
-        resp = c.post("/v1/inspect/input", json={
-            "prompt": "Hello",
-            "session_id": "sess-1",
-            "user_id": "user-1",
-            "application_id": "app-1",
-            "ip_address": "1.2.3.4",
-        })
+        resp = c.post(
+            "/v1/inspect/input",
+            json={
+                "prompt": "Hello",
+                "session_id": "sess-1",
+                "user_id": "user-1",
+                "application_id": "app-1",
+                "ip_address": "1.2.3.4",
+            },
+        )
         assert resp.status_code == 200
         # Verify the PromptContext was built with correct session fields
         call_args = mock_fw.inspect_input_async.call_args
@@ -304,10 +307,13 @@ class TestInspectInputEndpoint:
 
     def test_prior_turns_accepted(self, client):
         c, _ = client
-        resp = c.post("/v1/inspect/input", json={
-            "prompt": "Hello",
-            "prior_turns": ["turn1", "turn2"],
-        })
+        resp = c.post(
+            "/v1/inspect/input",
+            json={
+                "prompt": "Hello",
+                "prior_turns": ["turn1", "turn2"],
+            },
+        )
         assert resp.status_code == 200
 
     def test_returns_503_when_firewall_not_initialised(self, client):
@@ -349,20 +355,26 @@ class TestInspectOutputEndpoint:
         c, mock_fw = client
         self._seed_cache("valid-id")
         mock_fw.inspect_output.return_value = _safe_response("valid-id")
-        resp = c.post("/v1/inspect/output", json={
-            "decision_id": "valid-id",
-            "response_text": "Sure, here is your answer.",
-        })
+        resp = c.post(
+            "/v1/inspect/output",
+            json={
+                "decision_id": "valid-id",
+                "response_text": "Sure, here is your answer.",
+            },
+        )
         assert resp.status_code == 200
 
     def test_safe_outcome(self, client):
         c, mock_fw = client
         self._seed_cache("safe-id")
         mock_fw.inspect_output.return_value = _safe_response("safe-id")
-        resp = c.post("/v1/inspect/output", json={
-            "decision_id": "safe-id",
-            "response_text": "A clean response.",
-        })
+        resp = c.post(
+            "/v1/inspect/output",
+            json={
+                "decision_id": "safe-id",
+                "response_text": "A clean response.",
+            },
+        )
         data = resp.json()
         assert data["outcome"] == "safe"
         assert data["content"] == "text"
@@ -371,10 +383,13 @@ class TestInspectOutputEndpoint:
         c, mock_fw = client
         self._seed_cache("redacted-id")
         mock_fw.inspect_output.return_value = _redacted_response("redacted-id")
-        resp = c.post("/v1/inspect/output", json={
-            "decision_id": "redacted-id",
-            "response_text": "Some response text.",
-        })
+        resp = c.post(
+            "/v1/inspect/output",
+            json={
+                "decision_id": "redacted-id",
+                "response_text": "Some response text.",
+            },
+        )
         data = resp.json()
         assert data["outcome"] == "redacted"
         assert data["content"] == "[REDACTED]"
@@ -384,10 +399,13 @@ class TestInspectOutputEndpoint:
         c, mock_fw = client
         self._seed_cache("blocked-id")
         mock_fw.inspect_output.return_value = _blocked_response("blocked-id")
-        resp = c.post("/v1/inspect/output", json={
-            "decision_id": "blocked-id",
-            "response_text": "Malicious output.",
-        })
+        resp = c.post(
+            "/v1/inspect/output",
+            json={
+                "decision_id": "blocked-id",
+                "response_text": "Malicious output.",
+            },
+        )
         data = resp.json()
         assert data["outcome"] == "blocked"
         assert data["content"] is None
@@ -395,24 +413,33 @@ class TestInspectOutputEndpoint:
 
     def test_unknown_decision_id_returns_404(self, client):
         c, _ = client
-        resp = c.post("/v1/inspect/output", json={
-            "decision_id": "nonexistent-xyz",
-            "response_text": "Some response.",
-        })
+        resp = c.post(
+            "/v1/inspect/output",
+            json={
+                "decision_id": "nonexistent-xyz",
+                "response_text": "Some response.",
+            },
+        )
         assert resp.status_code == 404
 
     def test_missing_decision_id_returns_422(self, client):
         c, _ = client
-        resp = c.post("/v1/inspect/output", json={
-            "response_text": "Some response.",
-        })
+        resp = c.post(
+            "/v1/inspect/output",
+            json={
+                "response_text": "Some response.",
+            },
+        )
         assert resp.status_code == 422
 
     def test_missing_response_text_returns_422(self, client):
         c, _ = client
-        resp = c.post("/v1/inspect/output", json={
-            "decision_id": "some-id",
-        })
+        resp = c.post(
+            "/v1/inspect/output",
+            json={
+                "decision_id": "some-id",
+            },
+        )
         assert resp.status_code == 422
 
     def test_returns_503_when_firewall_not_initialised(self, client):
@@ -422,10 +449,13 @@ class TestInspectOutputEndpoint:
         original = api_module._firewall
         api_module._firewall = None
         try:
-            resp = c.post("/v1/inspect/output", json={
-                "decision_id": "x",
-                "response_text": "y",
-            })
+            resp = c.post(
+                "/v1/inspect/output",
+                json={
+                    "decision_id": "x",
+                    "response_text": "y",
+                },
+            )
             assert resp.status_code == 503
         finally:
             api_module._firewall = original

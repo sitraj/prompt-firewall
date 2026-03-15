@@ -33,7 +33,7 @@ from __future__ import annotations
 
 import logging
 import unicodedata
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from llm_prompt_firewall.models.schemas import (
     PatternSignal,
@@ -49,11 +49,24 @@ REDACTION_MARKER: str = "[REDACTED]"
 
 # Characters stripped in invisible-char removal (mirrors the pattern detector's
 # list so both layers are consistent).
-_INVISIBLE_CHARS: frozenset[str] = frozenset([
-    "\u200b", "\u200c", "\u200d", "\u00ad", "\u2060",
-    "\ufeff", "\u202a", "\u202b", "\u202c", "\u202d",
-    "\u202e", "\u2066", "\u2067", "\u2069",
-])
+_INVISIBLE_CHARS: frozenset[str] = frozenset(
+    [
+        "\u200b",
+        "\u200c",
+        "\u200d",
+        "\u00ad",
+        "\u2060",
+        "\ufeff",
+        "\u202a",
+        "\u202b",
+        "\u202c",
+        "\u202d",
+        "\u202e",
+        "\u2066",
+        "\u2067",
+        "\u2069",
+    ]
+)
 
 
 @dataclass(frozen=True)
@@ -64,6 +77,7 @@ class InputFilterResult:
     Contains the sanitized text ready for forwarding to the LLM, plus a
     full record of every transformation applied, for audit logging.
     """
+
     sanitized_text: str
     original_sha256: str
     modifications: list[str]
@@ -127,9 +141,7 @@ class InputFilter:
         if self._policy.strip_invisible_chars:
             text, removed_count = _strip_invisible(text)
             if removed_count > 0:
-                modifications.append(
-                    f"Stripped {removed_count} invisible/zero-width character(s)."
-                )
+                modifications.append(f"Stripped {removed_count} invisible/zero-width character(s).")
 
         # Step 2: Unicode normalisation
         if self._policy.normalize_unicode:
@@ -181,6 +193,7 @@ class InputFilter:
 # ---------------------------------------------------------------------------
 # Private helpers
 # ---------------------------------------------------------------------------
+
 
 def _strip_invisible(text: str) -> tuple[str, int]:
     """Remove invisible Unicode characters. Returns (cleaned_text, count_removed)."""

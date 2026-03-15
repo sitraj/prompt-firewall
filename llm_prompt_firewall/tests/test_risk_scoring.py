@@ -32,8 +32,6 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT))
 
 from llm_prompt_firewall.core.risk_scoring import (
-    DEFAULT_THRESHOLDS,
-    DEFAULT_WEIGHTS,
     RiskScorer,
     ThresholdConfig,
     WeightConfig,
@@ -49,10 +47,8 @@ from llm_prompt_firewall.models.schemas import (
     PatternMatch,
     PatternSignal,
     RiskLevel,
-    RiskScore,
     ThreatCategory,
 )
-
 
 # ---------------------------------------------------------------------------
 # Signal factories — build minimal valid signal objects for testing
@@ -383,9 +379,7 @@ class TestMultiDetectorEnsemble:
 
     def test_custom_weights_change_score(self):
         # Give LLM all the weight
-        weights = WeightConfig(
-            pattern=0.0, embedding=0.0, llm_classifier=1.0, context_boundary=0.0
-        )
+        weights = WeightConfig(pattern=0.0, embedding=0.0, llm_classifier=1.0, context_boundary=0.0)
         scorer = RiskScorer(weights=weights)
         ens = _ensemble(
             pattern=_pattern(confidence=1.0, matched=True),
@@ -460,7 +454,9 @@ class TestPrimaryThreatResolution:
         assert threat == ThreatCategory.DATA_EXFILTRATION
 
     def test_pattern_used_when_llm_absent(self):
-        pattern_sig = _pattern(confidence=0.9, matched=True, category=ThreatCategory.PROMPT_EXTRACTION)
+        pattern_sig = _pattern(
+            confidence=0.9, matched=True, category=ThreatCategory.PROMPT_EXTRACTION
+        )
         threat = _resolve_primary_threat(pattern_sig, None, None, None)
         assert threat == ThreatCategory.PROMPT_EXTRACTION
 
@@ -472,7 +468,9 @@ class TestPrimaryThreatResolution:
     def test_degraded_llm_falls_through_to_pattern(self):
         """A degraded LLM should not be used for category resolution."""
         pattern_sig = _pattern(confidence=0.8, matched=True, category=ThreatCategory.JAILBREAK)
-        degraded_llm = _llm(risk_score=0.0, category=ThreatCategory.DATA_EXFILTRATION, degraded=True)
+        degraded_llm = _llm(
+            risk_score=0.0, category=ThreatCategory.DATA_EXFILTRATION, degraded=True
+        )
         threat = _resolve_primary_threat(pattern_sig, None, degraded_llm, None)
         assert threat == ThreatCategory.JAILBREAK
 
@@ -569,6 +567,7 @@ class TestScoreFromSignals:
 class TestRiskScoreIntegrity:
     def test_risk_score_is_frozen(self):
         from pydantic import ValidationError
+
         scorer = RiskScorer()
         risk = scorer.score(_ensemble(pattern=_pattern(confidence=0.5, matched=True)))
         with pytest.raises((TypeError, AttributeError, ValidationError)):

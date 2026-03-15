@@ -36,7 +36,6 @@ from llm_prompt_firewall.models.schemas import (
     PromptContext,
 )
 
-
 # ---------------------------------------------------------------------------
 # Colour helpers (gracefully degrade when terminal has no colour support)
 # ---------------------------------------------------------------------------
@@ -146,7 +145,9 @@ def inspect(
         click.echo(json.dumps(output, indent=2))
     else:
         click.echo(f"\nAction  : {_action_label(decision.action)}")
-        click.echo(f"Risk    : {decision.risk_score.score:.2f}  [{decision.risk_score.level.value}]")
+        click.echo(
+            f"Risk    : {decision.risk_score.score:.2f}  [{decision.risk_score.level.value}]"
+        )
         click.echo(f"Threat  : {decision.risk_score.primary_threat.value}")
         if decision.block_reason:
             click.echo(f"Reason  : {decision.block_reason}")

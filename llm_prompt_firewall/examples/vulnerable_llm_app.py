@@ -105,7 +105,7 @@ def run_protected_scenario(firewall: PromptFirewall, user_input: str) -> None:
     response = mock_llm(decision.effective_prompt or "")
     result = firewall.inspect_output(response, decision)
 
-    from llm_prompt_firewall.models.schemas import SafeResponse, RedactedResponse, BlockedResponse
+    from llm_prompt_firewall.models.schemas import RedactedResponse, SafeResponse
 
     if isinstance(result, SafeResponse):
         print(f"LLM output : {result.content}")
@@ -150,12 +150,14 @@ def main() -> None:
     print("\n" + "=" * 60)
     print("  LLM Prompt Firewall — Integration Demo")
     print("=" * 60)
-    print(textwrap.dedent("""
+    print(
+        textwrap.dedent("""
     This demo shows:
       1. A prompt injection attack WITHOUT the firewall (vulnerable)
       2. The same attack WITH the firewall (blocked)
       3. A benign query passing through cleanly
-    """))
+    """)
+    )
 
     # Initialise the firewall once (production: share this as a singleton)
     print("Initialising PromptFirewall...")

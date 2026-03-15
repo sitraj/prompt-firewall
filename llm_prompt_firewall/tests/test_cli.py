@@ -8,10 +8,8 @@ so no real models load. Use CliRunner for isolated invocation.
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
 from click.testing import CliRunner
 
 from llm_prompt_firewall.cli import cli
@@ -27,7 +25,6 @@ from llm_prompt_firewall.models.schemas import (
     SanitizedPrompt,
     ThreatCategory,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helper builders
@@ -218,11 +215,12 @@ class TestInspectCommand:
         policy_file = tmp_path / "policy.yaml"
         policy_file.write_text("# policy\n")
         fw = _mock_firewall(_allow_decision())
-        with patch(
-            "llm_prompt_firewall.cli.PromptFirewall.from_config_file", return_value=fw
-        ) as mock_cfg, patch(
-            "llm_prompt_firewall.cli.PromptFirewall.from_default_config"
-        ) as mock_default:
+        with (
+            patch(
+                "llm_prompt_firewall.cli.PromptFirewall.from_config_file", return_value=fw
+            ) as mock_cfg,
+            patch("llm_prompt_firewall.cli.PromptFirewall.from_default_config") as mock_default,
+        ):
             result = self.runner.invoke(
                 cli,
                 ["inspect", "--policy", str(policy_file), "Hello"],

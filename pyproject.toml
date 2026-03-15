@@ -1,6 +1,6 @@
 [build-system]
 requires = ["setuptools>=68", "wheel"]
-build-backend = "setuptools.backends.legacy:build"
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "llm-prompt-firewall"
@@ -94,6 +94,10 @@ ignore = ["E501"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["llm_prompt_firewall"]
+
+[tool.ruff.lint.per-file-ignores]
+# Test files manipulate sys.path before importing — E402 is unavoidable there.
+"llm_prompt_firewall/tests/test_*.py" = ["E402"]
 
 # ---------------------------------------------------------------------------
 # Mypy
