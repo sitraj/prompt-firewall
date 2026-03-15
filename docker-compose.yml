@@ -1,0 +1,83 @@
+version: "3.9"
+
+# ── Services ────────────────────────────────────────────────────────────────
+#
+# Default stack (docker compose up):
+#   firewall — the PromptFirewall REST API on port 8000
+#
+# Monitoring stack (docker compose --profile monitoring up):
+#   + prometheus — Prometheus server scraping /v1/metrics (port 9090)
+#   + grafana    — Grafana dashboards (port 3000, admin/admin)
+
+services:
+
+  # ── Firewall API ───────────────────────────────────────────────────────────
+  firewall:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    image: llm-prompt-firewall:latest
+    ports:
+      - "8000:8000"
+    environment:
+      FIREWALL_LOG_LEVEL: ${FIREWALL_LOG_LEVEL:-INFO}
+      FIREWALL_CACHE_MAX_SIZE: ${FIREWALL_CACHE_MAX_SIZE:-10000}
+      FIREWALL_CACHE_TTL_SECONDS: ${FIREWALL_CACHE_TTL_SECONDS:-300}
+      # Set FIREWALL_POLICY_PATH to mount a custom policy file:
+      # FIREWALL_POLICY_PATH: /app/policy/my_policy.yaml
+      # Set FIREWALL_AUDIT_LOG_FILE to write audit events to a file:
+      # FIREWALL_AUDIT_LOG_FILE: /app/logs/audit.ndjson
+    volumes:
+      # Uncomment to mount a custom policy:
+      # - ./my_policy.yaml:/app/policy/my_policy.yaml:ro
+      # Uncomment to persist audit logs:
+      # - ./logs:/app/logs
+      []
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8000/v1/health')"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+    restart: unless-stopped
+
+  # ── Prometheus ─────────────────────────────────────────────────────────────
+  prometheus:
+    profiles: ["monitoring"]
+    image: prom/prometheus:v2.52.0
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./docker/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=15d"
+      - "--web.enable-lifecycle"
+    depends_on:
+      firewall:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Grafana ────────────────────────────────────────────────────────────────
+  grafana:
+    profiles: ["monitoring"]
+    image: grafana/grafana:10.4.3
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+volumes:
+  prometheus_data:
+  grafana_data:

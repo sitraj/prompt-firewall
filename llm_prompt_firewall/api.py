@@ -63,8 +63,11 @@ from threading import Lock
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request, status
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from pydantic import BaseModel, Field
+
+from llm_prompt_firewall import metrics as fw_metrics
 
 from llm_prompt_firewall.firewall import PromptFirewall
 from llm_prompt_firewall.models.schemas import (
@@ -324,6 +327,18 @@ async def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.get("/v1/metrics", tags=["ops"], include_in_schema=False)
+async def metrics() -> Response:
+    """
+    Prometheus metrics endpoint.
+
+    Returns metrics in the standard Prometheus text exposition format.
+    Scrape this endpoint with your Prometheus server at the configured
+    scrape_interval (recommended: 15s).
+    """
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+
 @app.get("/v1/ready", tags=["ops"])
 async def ready() -> dict[str, str]:
     """Readiness probe. Returns 503 if the firewall is not yet initialised."""
@@ -370,15 +385,25 @@ async def inspect_input(request: InspectInputRequest) -> InspectInputResponse:
         system_prompt_hash=request.system_prompt_hash,
     )
 
+    t0 = time.monotonic()
     decision: FirewallDecision = await _firewall.inspect_input_async(
         ctx,
         application_id=request.application_id,
         user_id=request.user_id,
         ip_address=request.ip_address,
     )
+    elapsed = time.monotonic() - t0
 
     # Cache decision so /inspect/output can retrieve it by decision_id.
     _cache_put(decision.decision_id, decision)
+
+    # Record Prometheus metrics.
+    fw_metrics.record_input(
+        action=decision.action.value,
+        risk_score=decision.risk_score.score,
+        duration_seconds=elapsed,
+    )
+    fw_metrics.update_cache_size(len(_decision_cache))
 
     ens = decision.ensemble
     return InspectInputResponse(
@@ -429,15 +454,20 @@ async def inspect_output(request: InspectOutputRequest) -> InspectOutputResponse
             ),
         )
 
+    t0 = time.monotonic()
     result = _firewall.inspect_output(request.response_text, decision)
+    elapsed = time.monotonic() - t0
 
     if isinstance(result, SafeResponse):
+        fw_metrics.record_output("safe", elapsed)
         return InspectOutputResponse(
             decision_id=request.decision_id,
             outcome="safe",
             content=result.content,
         )
     elif isinstance(result, RedactedResponse):
+        secret_types = [r.split(":")[0] for r in result.redactions]
+        fw_metrics.record_output("redacted", elapsed, secret_types)
         return InspectOutputResponse(
             decision_id=request.decision_id,
             outcome="redacted",
@@ -445,6 +475,7 @@ async def inspect_output(request: InspectOutputRequest) -> InspectOutputResponse
             redactions=result.redactions,
         )
     else:  # BlockedResponse
+        fw_metrics.record_output("blocked", elapsed)
         return InspectOutputResponse(
             decision_id=request.decision_id,
             outcome="blocked",
