@@ -26,6 +26,12 @@ from llm_prompt_firewall.detectors.embedding_detector import (
     chunk_text,
     build_index,
 )
+from llm_prompt_firewall.detectors.llm_classifier import (
+    LLMClassifier,
+    ClassifierBackend,
+    OpenAIBackend,
+    AnthropicBackend,
+)
 
 __all__ = [
     "PatternDetector",
@@ -38,4 +44,8 @@ __all__ = [
     "IndexEntry",
     "chunk_text",
     "build_index",
+    "LLMClassifier",
+    "ClassifierBackend",
+    "OpenAIBackend",
+    "AnthropicBackend",
 ]
