@@ -1,0 +1,104 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "llm-prompt-firewall"
+version = "0.1.0"
+description = "Production-grade prompt injection detection and output sanitization for LLM applications"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+keywords = ["llm", "security", "prompt-injection", "ai-safety", "firewall"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+    "pydantic>=2.7,<3",
+    "pyyaml>=6.0",
+    "click>=8.1",
+    "httpx>=0.27",               # used internally for async HTTP in connectors
+]
+
+[project.optional-dependencies]
+api = [
+    "fastapi>=0.111",
+    "uvicorn[standard]>=0.30",
+]
+embedding = [
+    "sentence-transformers>=3.0",
+    "numpy>=1.26",
+]
+llm-classifier = [
+    "openai>=1.30",
+]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "anyio>=4.0",
+    "ruff>=0.4",
+    "mypy>=1.10",
+    "fastapi>=0.111",           # needed to test api.py in dev
+    "uvicorn[standard]>=0.30",
+    "httpx>=0.27",              # needed for FastAPI TestClient
+]
+all = [
+    "llm-prompt-firewall[api,embedding,llm-classifier]",
+]
+
+[project.scripts]
+firewall = "llm_prompt_firewall.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/shounakitraj/prompt-firewall"
+Repository = "https://github.com/shounakitraj/prompt-firewall"
+"Bug Tracker" = "https://github.com/shounakitraj/prompt-firewall/issues"
+
+[tool.setuptools.packages.find]
+include = ["llm_prompt_firewall*"]
+
+[tool.setuptools.package-data]
+"llm_prompt_firewall" = ["config/*.yaml", "datasets/*.json", "datasets/*.jsonl"]
+
+# ---------------------------------------------------------------------------
+# Pytest
+# ---------------------------------------------------------------------------
+
+[tool.pytest.ini_options]
+testpaths = ["llm_prompt_firewall/tests"]
+asyncio_mode = "auto"
+addopts = "-ra -q"
+
+# ---------------------------------------------------------------------------
+# Ruff (linting + formatting)
+# ---------------------------------------------------------------------------
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM"]
+ignore = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["llm_prompt_firewall"]
+
+# ---------------------------------------------------------------------------
+# Mypy
+# ---------------------------------------------------------------------------
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+ignore_missing_imports = true
+plugins = ["pydantic.mypy"]
